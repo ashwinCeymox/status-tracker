@@ -24,7 +24,7 @@ export default function SettingsPage() {
               <label className="block text-[var(--color-text-secondary)] mb-1.5 font-medium">Local Proxy Endpoint</label>
               <input
                 type="text"
-                defaultValue="http://127.0.0.1:20128"
+                placeholder="Proxy URL (optional)"
                 className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
               />
             </div>
@@ -32,7 +32,7 @@ export default function SettingsPage() {
               <label className="block text-[var(--color-text-secondary)] mb-1.5 font-medium">Event Collector Port</label>
               <input
                 type="text"
-                defaultValue="20131"
+                placeholder="Port (optional)"
                 className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
               />
             </div>

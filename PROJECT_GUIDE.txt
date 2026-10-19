@@ -6,8 +6,8 @@ Complete Architecture, Features, Data Contracts, Accounting Engine & Operations 
 1. EXECUTIVE SUMMARY & PURPOSE
 --------------------------------------------------------------------------------
 The Token Monitor & Planning Studio Plugin is an automated developer control
-center and telemetry layer built for Claude Code and the OmniRoute AI model
-proxy (http://localhost:20128).
+center and telemetry layer built for Claude Code and API model proxies
+such as OmniRoute or custom gateways.
 
 It solves four fundamental problems in AI-assisted engineering:
 1. Measured Token & Financial Accounting:
@@ -41,7 +41,7 @@ It solves four fundamental problems in AI-assisted engineering:
   │   - Executes tool use, edits code, writes transcripts        │
   │   - Lifecycle Hooks: SessionStart, UserPromptSubmit, Stop    │
   └──────────────┬───────────────────────────────┬───────────────┘
-                 │ (HTTP via localhost:20128)    │ (Lifecycle trigger)
+                 │ (HTTP via proxy endpoint)     │ (Lifecycle trigger)
                  ▼                               ▼
   ┌──────────────────────────────┐ ┌─────────────────────────────┐
   │       OmniRoute Proxy        │ │    log-activity.js Hook     │

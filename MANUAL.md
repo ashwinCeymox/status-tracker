@@ -51,7 +51,7 @@ The plugin operates as a lightweight, zero-dependency extension to Claude Code a
 
 ### System Requirements
 - **Node.js**: v18.0.0 or higher (v20+ recommended).
-- **OmniRoute Proxy**: Running on `http://localhost:20128` (or custom endpoint).
+- **API Gateway / Proxy** (Optional): OmniRoute, Ollama, or custom endpoint.
 - **Claude Code CLI**: v2.1.290+.
 
 ### Step 1: Clone & Run the One-Time Global Installer

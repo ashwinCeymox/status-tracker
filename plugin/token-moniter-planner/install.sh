@@ -49,9 +49,9 @@ EXISTING_URL=$(node -e "try { const s = JSON.parse(require('fs').readFileSync('$
 EXISTING_TOKEN=$(node -e "try { const s = JSON.parse(require('fs').readFileSync('$GLOBAL_SETTINGS', 'utf8')); console.log(s.env?.ANTHROPIC_AUTH_TOKEN || ''); } catch(e){}" 2>/dev/null || echo "")
 EXISTING_MODEL=$(node -e "try { const s = JSON.parse(require('fs').readFileSync('$GLOBAL_SETTINGS', 'utf8')); console.log(s.env?.ANTHROPIC_MODEL || ''); } catch(e){}" 2>/dev/null || echo "")
 
-DEFAULT_URL="${EXISTING_URL:-http://localhost:20128}"
+DEFAULT_URL="${EXISTING_URL:-}"
 DEFAULT_TOKEN="${EXISTING_TOKEN:-}"
-DEFAULT_MODEL="${EXISTING_MODEL:-anti-gravity}"
+DEFAULT_MODEL="${EXISTING_MODEL:-}"
 
 GATEWAY_URL="$DEFAULT_URL"
 AUTH_TOKEN="$DEFAULT_TOKEN"
@@ -61,8 +61,8 @@ MODEL_NAME="$DEFAULT_MODEL"
 if [[ -t 0 && "$1" != "--default" && "$1" != "-y" ]]; then
   echo ""
   echo "📡 Step 1: Select API Gateway / Proxy"
-  echo "   1) OmniRoute (Local proxy on http://localhost:20128) [Default]"
-  echo "   2) Ollama (Local server on http://localhost:11434)"
+  echo "   1) OmniRoute (Local proxy)"
+  echo "   2) Ollama (Local server)"
   echo "   3) Custom API Gateway URL"
   echo "   4) Skip (Direct Claude / No Proxy)"
   read -r -p "Select option [1-4, default 1]: " GATEWAY_CHOICE
@@ -70,42 +70,60 @@ if [[ -t 0 && "$1" != "--default" && "$1" != "-y" ]]; then
 
   case "$GATEWAY_CHOICE" in
     1)
-      read -r -p "Enter OmniRoute URL [$DEFAULT_URL]: " INPUT_URL
-      GATEWAY_URL="${INPUT_URL:-$DEFAULT_URL}"
+      if [[ -n "$EXISTING_URL" ]]; then
+        read -r -p "Enter OmniRoute URL [press Enter to keep current]: " INPUT_URL
+        GATEWAY_URL="${INPUT_URL:-$EXISTING_URL}"
+      else
+        read -r -p "Enter OmniRoute URL: " INPUT_URL
+        GATEWAY_URL="${INPUT_URL:-}"
+      fi
       ;;
     2)
-      read -r -p "Enter Ollama URL [http://localhost:11434]: " INPUT_URL
-      GATEWAY_URL="${INPUT_URL:-http://localhost:11434}"
-      DEFAULT_MODEL="llama3"
+      if [[ -n "$EXISTING_URL" ]]; then
+        read -r -p "Enter Ollama URL [press Enter to keep current]: " INPUT_URL
+        GATEWAY_URL="${INPUT_URL:-$EXISTING_URL}"
+      else
+        read -r -p "Enter Ollama URL: " INPUT_URL
+        GATEWAY_URL="${INPUT_URL:-}"
+      fi
       ;;
     3)
-      read -r -p "Enter Custom Gateway URL: " INPUT_URL
-      GATEWAY_URL="${INPUT_URL:-$DEFAULT_URL}"
+      if [[ -n "$EXISTING_URL" ]]; then
+        read -r -p "Enter Custom Gateway URL [press Enter to keep current]: " INPUT_URL
+        GATEWAY_URL="${INPUT_URL:-$EXISTING_URL}"
+      else
+        read -r -p "Enter Custom Gateway URL: " INPUT_URL
+        GATEWAY_URL="${INPUT_URL:-}"
+      fi
       ;;
     4)
       GATEWAY_URL=""
       ;;
     *)
-      GATEWAY_URL="$DEFAULT_URL"
+      GATEWAY_URL="${EXISTING_URL:-}"
       ;;
   esac
 
   if [[ -n "$GATEWAY_URL" ]]; then
     echo ""
     echo "🔑 Step 2: API Key / Auth Token"
-    if [[ -n "$DEFAULT_TOKEN" ]]; then
-      TOKEN_MASKED="${DEFAULT_TOKEN:0:6}...${DEFAULT_TOKEN: -4}"
-      read -r -p "Enter API Key / Auth Token [press Enter to keep $TOKEN_MASKED]: " INPUT_TOKEN
-      AUTH_TOKEN="${INPUT_TOKEN:-$DEFAULT_TOKEN}"
+    if [[ -n "$EXISTING_TOKEN" ]]; then
+      read -r -p "Enter API Key / Auth Token [press Enter to keep current]: " INPUT_TOKEN
+      AUTH_TOKEN="${INPUT_TOKEN:-$EXISTING_TOKEN}"
     else
-      read -r -p "Enter API Key / Auth Token (e.g. sk-... or press Enter to skip): " INPUT_TOKEN
+      read -r -p "Enter API Key / Auth Token (press Enter to skip): " INPUT_TOKEN
       AUTH_TOKEN="${INPUT_TOKEN:-}"
     fi
 
     echo ""
     echo "🤖 Step 3: Default Model / Combo Name"
-    read -r -p "Enter default model or combo name [$DEFAULT_MODEL]: " INPUT_MODEL
-    MODEL_NAME="${INPUT_MODEL:-$DEFAULT_MODEL}"
+    if [[ -n "$EXISTING_MODEL" ]]; then
+      read -r -p "Enter default model or combo name [press Enter to keep current]: " INPUT_MODEL
+      MODEL_NAME="${INPUT_MODEL:-$EXISTING_MODEL}"
+    else
+      read -r -p "Enter default model or combo name (press Enter to skip): " INPUT_MODEL
+      MODEL_NAME="${INPUT_MODEL:-}"
+    fi
   fi
 fi
 
@@ -129,8 +147,11 @@ settings.env = settings.env || {};
 const gatewayUrl = '$GATEWAY_URL';
 const authToken = '$AUTH_TOKEN';
 const modelName = '$MODEL_NAME';
+const gatewayChoice = '$GATEWAY_CHOICE';
 
-if (gatewayUrl) {
+if (gatewayChoice === '4') {
+  delete settings.env.ANTHROPIC_BASE_URL;
+} else if (gatewayUrl) {
   settings.env.ANTHROPIC_BASE_URL = gatewayUrl;
 }
 if (authToken) {

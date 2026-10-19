@@ -25,9 +25,9 @@ cd token-monitor-planner
 ```
 
 The interactive installer will ask you:
-1. **API Gateway**: OmniRoute (port 20128), Ollama (port 11434), Custom URL, or Skip.
+1. **API Gateway**: OmniRoute, Ollama, Custom URL, or Skip.
 2. **API Key / Auth Token**: Saved securely into `~/.claude/settings.json` (never in project folders).
-3. **Model / Combo Name**: e.g., `anti-gravity`, `llama3`, or your custom combo.
+3. **Model / Combo Name**: Configure your preferred default model or combo name.
 
 ---
 

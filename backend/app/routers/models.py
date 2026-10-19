@@ -67,7 +67,7 @@ def get_gateway_url():
     if global_env.get("ANTHROPIC_BASE_URL"):
         return global_env.get("ANTHROPIC_BASE_URL").rstrip("/")
 
-    return "http://localhost:20128"
+    return ""
 
 @router.get("/")
 def list_models(session: Session = Depends(get_session)):
@@ -78,7 +78,7 @@ def list_models(session: Session = Depends(get_session)):
     global_env = get_global_settings()
     combo_name = (os.environ.get("ANTHROPIC_MODEL") or global_env.get("ANTHROPIC_MODEL") or "").lower().replace("-", "")
 
-    if token:
+    if token and base_url:
         try:
             req = urllib.request.Request(
                 f"{base_url}/v1/models",

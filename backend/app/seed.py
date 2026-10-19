@@ -103,7 +103,7 @@ def seed_database(session: Session):
         {
             "module_id": mod_infra.id,
             "title": "OmniRoute proxy authentication & token interceptor",
-            "objective": "Implement backend token resolution and live proxy headers for port 20128.",
+            "objective": "Implement backend token resolution and live proxy headers.",
             "category": "infra",
             "complexity": "medium",
             "model": "antigravity/gemini-3.1-pro-high",

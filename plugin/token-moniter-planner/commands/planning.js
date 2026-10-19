@@ -247,7 +247,7 @@ function getProxyBaseUrl() {
     }
   } catch (e) {}
 
-  return 'http://localhost:20128';
+  return '';
 }
 
 // Fetch and filter billable call-logs from OmniRoute
@@ -256,6 +256,10 @@ function fetchCallLogs(callback) {
   const token = getAuthToken();
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   const proxyUrl = getProxyBaseUrl();
+  if (!proxyUrl) {
+    if (callback) callback(null, []);
+    return;
+  }
   const req = http2.get(`${proxyUrl}/api/usage/call-logs`, { headers }, (r) => {
     let body = '';
     r.on('data', c => body += c);
@@ -372,10 +376,15 @@ const handleApiRequest = (req, res) => {
   }
 
   if (parsedUrl === '/api/models/' || parsedUrl === '/api/models') {
+    const proxyUrl = getProxyBaseUrl();
+    if (!proxyUrl) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify([]));
+      return;
+    }
     const http2 = require('http');
     const token = getAuthToken();
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-    const proxyUrl = getProxyBaseUrl();
     const proxyReq = http2.get(`${proxyUrl}/v1/models`, { headers }, (proxyRes) => {
       let body = '';
       proxyRes.on('data', chunk => body += chunk);

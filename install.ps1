@@ -60,8 +60,8 @@ if (Test-Path $globalSettings) {
     } catch {}
 }
 
-$defaultUrl = if ($existingUrl) { $existingUrl } else { "http://localhost:20128" }
-$defaultModel = if ($existingModel) { $existingModel } else { "anti-gravity" }
+$defaultUrl = if ($existingUrl) { $existingUrl } else { "" }
+$defaultModel = if ($existingModel) { $existingModel } else { "" }
 
 $gatewayUrl = $defaultUrl
 $authToken = $existingToken
@@ -71,8 +71,8 @@ $modelName = $defaultModel
 if (-not $Default -and [Environment]::UserInteractive) {
     Write-Host ""
     Write-Host "📡 Step 1: Select API Gateway / Proxy" -ForegroundColor Yellow
-    Write-Host "   1) OmniRoute (Local proxy on http://localhost:20128) [Default]"
-    Write-Host "   2) Ollama (Local server on http://localhost:11434)"
+    Write-Host "   1) OmniRoute (Local proxy)"
+    Write-Host "   2) Ollama (Local server)"
     Write-Host "   3) Custom API Gateway URL"
     Write-Host "   4) Skip (Direct Claude / No Proxy)"
     $choice = Read-Host "Select option [1-4, default 1]"
@@ -80,17 +80,28 @@ if (-not $Default -and [Environment]::UserInteractive) {
 
     switch ($choice) {
         "1" {
-            $inputUrl = Read-Host "Enter OmniRoute URL [$defaultUrl]"
-            $gatewayUrl = if ($inputUrl) { $inputUrl } else { $defaultUrl }
+            if ($existingUrl) {
+                $inputUrl = Read-Host "Enter OmniRoute URL "
+                $gatewayUrl = if ($inputUrl) { $inputUrl } else { $existingUrl }
+            } else {
+                $gatewayUrl = Read-Host "Enter OmniRoute URL"
+            }
         }
         "2" {
-            $inputUrl = Read-Host "Enter Ollama URL [http://localhost:11434]"
-            $gatewayUrl = if ($inputUrl) { $inputUrl } else { "http://localhost:11434" }
-            $defaultModel = "llama3"
+            if ($existingUrl) {
+                $inputUrl = Read-Host "Enter Ollama URL "
+                $gatewayUrl = if ($inputUrl) { $inputUrl } else { $existingUrl }
+            } else {
+                $gatewayUrl = Read-Host "Enter Ollama URL"
+            }
         }
         "3" {
-            $inputUrl = Read-Host "Enter Custom Gateway URL"
-            $gatewayUrl = if ($inputUrl) { $inputUrl } else { $defaultUrl }
+            if ($existingUrl) {
+                $inputUrl = Read-Host "Enter Custom Gateway URL "
+                $gatewayUrl = if ($inputUrl) { $inputUrl } else { $existingUrl }
+            } else {
+                $gatewayUrl = Read-Host "Enter Custom Gateway URL"
+            }
         }
         "4" {
             $gatewayUrl = ""
@@ -104,18 +115,22 @@ if (-not $Default -and [Environment]::UserInteractive) {
         Write-Host ""
         Write-Host "🔑 Step 2: API Key / Auth Token" -ForegroundColor Yellow
         if ($existingToken) {
-            $masked = $existingToken.Substring(0, [Math]::Min(6, $existingToken.Length)) + "..."
-            $inputToken = Read-Host "Enter API Key / Auth Token [press Enter to keep $masked]"
+            $inputToken = Read-Host "Enter API Key / Auth Token [press Enter to keep current]"
             $authToken = if ($inputToken) { $inputToken } else { $existingToken }
         } else {
-            $inputToken = Read-Host "Enter API Key / Auth Token (e.g. sk-... or press Enter to skip)"
+            $inputToken = Read-Host "Enter API Key / Auth Token (press Enter to skip)"
             $authToken = $inputToken
         }
 
         Write-Host ""
         Write-Host "🤖 Step 3: Default Model / Combo Name" -ForegroundColor Yellow
-        $inputModel = Read-Host "Enter default model or combo name [$defaultModel]"
-        $modelName = if ($inputModel) { $inputModel } else { $defaultModel }
+        if ($existingModel) {
+            $inputModel = Read-Host "Enter default model or combo name [press Enter to keep current]"
+            $modelName = if ($inputModel) { $inputModel } else { $existingModel }
+        } else {
+            $inputModel = Read-Host "Enter default model or combo name (press Enter to skip)"
+            $modelName = $inputModel
+        }
     }
 }
 
@@ -141,8 +156,13 @@ settings.env = settings.env || {};
 const gatewayUrl = '$gatewayUrl';
 const authToken = '$authToken';
 const modelName = '$modelName';
+const choice = '$choice';
 
-if (gatewayUrl) settings.env.ANTHROPIC_BASE_URL = gatewayUrl;
+if (choice === '4') {
+  delete settings.env.ANTHROPIC_BASE_URL;
+} else if (gatewayUrl) {
+  settings.env.ANTHROPIC_BASE_URL = gatewayUrl;
+}
 if (authToken) settings.env.ANTHROPIC_AUTH_TOKEN = authToken;
 if (modelName) {
   settings.env.ANTHROPIC_MODEL = modelName;
