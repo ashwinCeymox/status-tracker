@@ -1,0 +1,15 @@
+{
+  "name": "token-moniter-planner-marketplace",
+  "owner": {
+    "name": "Antigravity",
+    "email": "dev@example.com"
+  },
+  "description": "Local Claude Code marketplace for token-moniter-planner",
+  "plugins": [
+    {
+      "name": "token-moniter-planner",
+      "source": "./",
+      "description": "Token Monitor & Vibe Coder Planning Studio Plugin"
+    }
+  ]
+}

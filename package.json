@@ -1,0 +1,14 @@
+{
+  "name": "token-monitor-planner",
+  "version": "1.0.0",
+  "description": "Token Monitor & Planning Studio Plugin for Claude Code",
+  "private": true,
+  "scripts": {
+    "start": "node plugin/token-moniter-planner/commands/planning.js",
+    "status": "node plugin/token-moniter-planner/commands/planning.js status",
+    "sync": "node plugin/token-moniter-planner/commands/planning.js sync"
+  },
+  "dependencies": {
+    "ccusage": "^20.0.33"
+  }
+}

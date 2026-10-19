@@ -1,0 +1,464 @@
+================================================================================
+TOKEN MONITOR & PLANNING STUDIO PLUGIN FOR CLAUDE CODE
+Complete Architecture, Features, Data Contracts, Accounting Engine & Operations Guide
+================================================================================
+
+1. EXECUTIVE SUMMARY & PURPOSE
+--------------------------------------------------------------------------------
+The Token Monitor & Planning Studio Plugin is an automated developer control
+center and telemetry layer built for Claude Code and the OmniRoute AI model
+proxy (http://localhost:20128).
+
+It solves four fundamental problems in AI-assisted engineering:
+1. Measured Token & Financial Accounting:
+   Replaces blind estimates and synthetic placeholder numbers with an append-only
+   ledger (.planner/usage.jsonl). Calculates exact financial costs using official
+   pricing tables, deducts cached tokens for Gemini to prevent double-billing, and
+   bills reasoning tokens at output rates.
+2. Dynamic Project Planning:
+   Scans workspace source directories (src/, components/, backend/, frontend/, etc.),
+   maps architectural domains, and continuously synchronizes an actionable
+   implementation plan (.planner/plan.json) with verified task completion states.
+3. Continuous Activity Logging:
+   Uses non-blocking Claude Code lifecycle hooks to capture real dialogue turns
+   directly from local CLI transcripts (~/.claude/projects/), presenting clean
+   user and AI conversation chronologically by session.
+4. Strict Workspace Isolation:
+   Isolates all state within the target project directory (.planner/, app.db,
+   .claude/settings.local.json), guaranteeing that running the plugin in target
+   projects never modifies or pollutes the core plugin repository.
+
+
+2. SYSTEM ARCHITECTURE & TOPOLOGY
+--------------------------------------------------------------------------------
+
+  [ Developer Terminal ]
+          │
+          │  claude "prompt"
+          ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │                         Claude Code                          │
+  │   - Executes tool use, edits code, writes transcripts        │
+  │   - Lifecycle Hooks: SessionStart, UserPromptSubmit, Stop    │
+  └──────────────┬───────────────────────────────┬───────────────┘
+                 │ (HTTP via localhost:20128)    │ (Lifecycle trigger)
+                 ▼                               ▼
+  ┌──────────────────────────────┐ ┌─────────────────────────────┐
+  │       OmniRoute Proxy        │ │    log-activity.js Hook     │
+  │   - Model routing & combos   │ │   - Reads ~/.claude/projects│
+  │   - Logs calls to SQLite &   │ │   - Updates activity.json   │
+  │     /api/usage/call-logs     │ └─────────────┬───────────────┘
+  └──────────────┬───────────────┘               │
+                 │ (Ingestion)                   │
+                 ▼                               │
+  ┌──────────────────────────────────────────────┴───────────────┐
+  │                    Local .planner/ State                     │
+  │   - usage.jsonl (Append-only measured cost ledger)           │
+  │   - dashboard.json (Aggregated KPI metrics)                  │
+  │   - plan.json (Architecture domains & deliverables)          │
+  │   - projects.json (Workspace metadata & Git info)            │
+  │   - activity.json (Normalized conversation sessions)         │
+  └──────────────────────────────┬───────────────────────────────┘
+                                 │
+                                 ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │                Planning Studio Web Application               │
+  │   Backend API: Port 8000 (FastAPI or Node fallback)          │
+  │   Frontend UI: Port 3001 (React 19 + Tailwind + Recharts)    │
+  └──────────────────────────────────────────────────────────────┘
+
+
+3. CORE FEATURE CATALOG
+--------------------------------------------------------------------------------
+
+A. Telemetry & Accounting
+- Append-Only Usage Ledger (usage.jsonl):
+  Captures every billable API request with request ID, timestamp, model, provider,
+  detailed token counts (input, cache read, cache write, output, reasoning),
+  calculated cost in USD, and exact unit price rates applied.
+- Dynamic Pricing Engine:
+  Driven by .planner/prices.json (per-million token rates) to calculate precise
+  costs per call.
+- Gemini Token Normalization:
+  Gemini includes cached tokens within reported input token counts. The engine
+  subtracts cache read tokens from input tokens before calculating cost to avoid
+  double-billing.
+- Reasoning Token Billing:
+  Output tokens and reasoning tokens are combined into effective output tokens and
+  billed at the output rate.
+- Zero Invented Numbers:
+  If a project has zero usage records, the UI displays "No data yet" (null),
+  never fictitious placeholder numbers.
+- External Reconciliation Audit:
+  A standalone auditor compares ledger totals against ccusage CLI session logs
+  and flags discrepancies greater than 5% without double-counting.
+
+B. Project Planning & Architecture
+- Codebase Directory Scanning:
+  Discovers repository layout across src/, components/, backend/, frontend/, lib/,
+  and root files.
+- Task Completion Tracking:
+  Maintains task lists and marks items completed ("done") as features are built.
+- Software Architecture Specification (Docs Tab):
+  Generates an Executive Summary, Global Notes, Folder Purpose statements, and
+  File Inventories with file counts and Planned vs. Actual token labels.
+
+C. Activity & Session History
+- Local Transcript Ingestion:
+  Parses Claude Code session transcripts from ~/.claude/projects/.
+- System Tag Stripping:
+  Removes internal CLI tags (<system-reminder>, <ide_opened_file>, thinking tags)
+  to preserve clean conversation turns.
+- Chronological Session Grouping:
+  Groups turns into collapsible session containers (Session 1, Session 2, etc.),
+  expanding the newest session by default.
+
+D. Server & Workspace Management
+- Safe Port 8000 Handling:
+  Probes http://localhost:8000/api/health. If a production FastAPI service is
+  already healthy, it attaches without issuing a kill command. If inactive, it
+  launches a lightweight Node API server.
+- Dynamic Workspace Isolation:
+  Detects active project directories via process.cwd() or the X-Workspace-Dir
+  HTTP header.
+- Automated Setup Script:
+  setup-prerequisites.sh configures settings, hooks, database, and manifests
+  in a single command.
+
+
+4. THE 5 LOCAL STATE FILES (.planner/)
+--------------------------------------------------------------------------------
+
+All project state lives inside the target project's .planner/ directory:
+
+1. plan.json (Architecture, Domains & Deliverables)
+   - Role: Single source of truth for the software implementation plan.
+   - UI Location:
+     * Planning Studio (/planning) -> Progress Info tab: feature checklist.
+     * Planning Studio (/planning) -> Docs tab: software specification.
+   - Schema:
+     {
+       "productIdea": "Application description",
+       "globalNotes": "Tech stack and architectural constraints",
+       "domains": [
+         {
+           "id": "domain-backend",
+           "category": "backend",
+           "title": "Backend & Services",
+           "modules": [
+             {
+               "id": "backend-module",
+               "title": "Backend API & Database Logic",
+               "category": "backend",
+               "summary": "Handles REST endpoints and database persistence",
+               "purpose": "Core business logic and persistence",
+               "deliverables": ["backend/main.py", "backend/database.py"],
+               "complexity": "medium",
+               "reviewStatus": "approved",
+               "tasks": [
+                 {
+                   "id": "task-backend-impl",
+                   "title": "Backend API Implementation",
+                   "status": "done"
+                 }
+               ]
+             }
+           ]
+         }
+       ]
+     }
+
+2. projects.json (Workspace & Git Metadata)
+   - Role: Stores repository path, active Git branch, latest commit hash, and
+     module hierarchy.
+   - UI Location: Projects overview (/projects) and workspace metadata pills.
+   - Schema:
+     {
+       "id": 1,
+       "name": "my-project",
+       "description": "Project architecture and module tree",
+       "repository_path": "/path/to/my-project",
+       "status": "active",
+       "stage": "execution",
+       "created_at": "2026-10-12T05:11:11.604Z",
+       "branch": "main",
+       "commit": "a1b2c3d",
+       "isClean": true,
+       "modules": [...]
+     }
+
+3. dashboard.json (Measured Financial & Token Telemetry)
+   - Role: Aggregated token counts, financial cost, and unpriced models list.
+   - UI Location: Key Metrics cards on the Overview Dashboard (/dashboard).
+   - Rule: If empty, values are null with status: "no_data".
+   - Schema:
+     {
+       "status": "measured",
+       "project_name": "my-project",
+       "target_project": "my-project",
+       "total_input_tokens": 22140880,
+       "total_cache_read": 10031614,
+       "total_cache_write": 0,
+       "total_output_tokens": 35655,
+       "total_reasoning": 7135,
+       "total_cost": 1.87,
+       "unpriced_models": [],
+       "row_count": 57,
+       "last_updated": "2026-10-16T01:37:16.828Z"
+     }
+
+4. usage.jsonl (Append-Only Event Ledger)
+   - Role: Individual record for every API request sent through OmniRoute.
+   - UI Location: Token Usage Over Time area chart and Recent Requests table.
+   - Format: One JSON object per line.
+   - Schema:
+     {
+       "request_id": "1792114604361-eff891",
+       "ts": "2026-10-16T01:37:10.026Z",
+       "project": "my-project",
+       "model": "gemini-3.8-flash-low",
+       "provider": "antigravity",
+       "status": 200,
+       "input_tokens": 166862,
+       "cache_read_tokens": 0,
+       "cache_write_tokens": 0,
+       "output_tokens": 419,
+       "reasoning_tokens": 412,
+       "cost_usd": 0.012764,
+       "cost_source": "computed",
+       "prices_used": {
+         "in": 0.075,
+         "cache_read": 0.01875,
+         "cache_write": 0.0,
+         "out": 0.3
+       },
+       "unpriced": false
+     }
+
+5. activity.json & checkpoints.json (Conversation History)
+   - Role: Normalized user prompts and AI responses grouped by session.
+   - UI Location: Activity Logs view (/logs).
+   - Schema:
+     {
+       "project": "/path/to/my-project",
+       "generatedAt": "2026-10-16T01:37:16.828Z",
+       "sessions": [
+         {
+           "id": "ae9df2e4-b2b0-4e14-8db4-591038304f8b",
+           "label": "Session 1",
+           "startedAt": "2026-10-12T05:59:50.042Z",
+           "messages": [
+             {
+               "role": "user",
+               "text": "create a webapp to take down notes",
+               "timestamp": "2026-10-12T06:05:21.654Z"
+             },
+             {
+               "role": "ai",
+               "text": "I will create a FastAPI backend with SQLite...",
+               "timestamp": "2026-10-12T06:05:35.120Z"
+             }
+           ]
+         }
+       ]
+     }
+
+
+5. TOKEN & FINANCIAL COST ACCOUNTING ENGINE
+--------------------------------------------------------------------------------
+
+A. Pricing Rates Table (.planner/prices.json)
+All rates are defined in USD per million tokens:
+{
+  "models": {
+    "claude-opus-4-6-thinking": { "in": 15.0,  "cache_read": 1.5,     "cache_write": 18.75, "out": 75.0 },
+    "claude-sonnet-4-6":        { "in": 3.0,   "cache_read": 0.3,     "cache_write": 3.75,  "out": 15.0 },
+    "claude-3-5-sonnet":        { "in": 3.0,   "cache_read": 0.3,     "cache_write": 3.75,  "out": 15.0 },
+    "claude-3-5-haiku":         { "in": 0.8,   "cache_read": 0.08,    "cache_write": 1.0,   "out": 4.0  },
+    "gemini-3.5-flash-lite":    { "in": 0.075, "cache_read": 0.01875, "cache_write": 0.0,   "out": 0.30 },
+    "gemini-3-flash":           { "in": 0.15,  "cache_read": 0.0375,  "cache_write": 0.0,   "out": 0.60 },
+    "gemini-3.8-flash-tiered":  { "in": 0.15,  "cache_read": 0.0375,  "cache_write": 0.0,   "out": 0.60 },
+    "gemini-3.8-flash-medium":  { "in": 0.15,  "cache_read": 0.0375,  "cache_write": 0.0,   "out": 0.60 },
+    "gemini-3.8-flash-high":    { "in": 0.15,  "cache_read": 0.0375,  "cache_write": 0.0,   "out": 0.60 },
+    "gpt-oss-120b-medium":      { "in": 0.50,  "cache_read": 0.125,   "cache_write": 0.0,   "out": 2.00 }
+  }
+}
+
+B. Calculation Rules
+1. Gemini Cache Normalization:
+   For Gemini models:
+   Billable Input = max(0, input_tokens - cache_read_tokens)
+   For other models:
+   Billable Input = input_tokens
+
+2. Reasoning Tokens:
+   Effective Output = output_tokens + reasoning_tokens
+
+3. Total Cost Formula:
+   Cost = (Billable Input / 1,000,000 * Price_in)
+        + (cache_read_tokens / 1,000,000 * Price_cache_read)
+        + (Effective Output / 1,000,000 * Price_out)
+
+4. Historical Immutability:
+   The prices applied are recorded directly in the prices_used object on each row
+   in usage.jsonl. Future price table edits affect only new calls; historical cost
+   totals remain exact and immutable.
+
+5. Idempotent Ingestion:
+   Calls are deduplicated by request_id. Ingesting multiple times results in 0
+   duplicate rows.
+
+6. Reconciliation Audit:
+   Run "node plugin/token-moniter-planner/commands/usage-ledger.js reconcile" to
+   compare ledger totals against ccusage CLI session logs and flag variances >5%.
+
+
+6. USER INTERFACE REFERENCE
+--------------------------------------------------------------------------------
+
+A. Overview Dashboard (http://localhost:3001/#/dashboard)
+- Key Metrics Cards:
+  * Project Build Input Tokens: Total ingested input tokens with call count.
+  * Project Build Output Tokens: Total generated output tokens with reasoning token count.
+  * Project Build Cost: Measured USD expenditure.
+  * Current Date: Formatted calendar date (e.g., Oct 19, 2026) and weekday name.
+  * Target Project: Active workspace name and ledger status pill ("Active ledger").
+  * Project Started: Folder creation date and days elapsed counter ("X days elapsed")
+    calculated from filesystem creation metadata (stat.birthtime).
+- Token Usage Over Time:
+  Interactive daily Recharts area chart showing input and output trends.
+- Recent Requests Feed:
+  Clean 3-column live monitor:
+  * Model: Model name with status dot (emerald for 200, rose for error).
+  * In / Out: Formatted token counts (<in>↑ in coral, <out>↓ in emerald).
+  * When: Latency duration (e.g., 17s, 2m).
+
+B. Planning Studio (http://localhost:3001/#/planning)
+- Progress Info Tab:
+  Feature checklist with task completion checkmarks ("done"). Progress bars
+  and artificial approval badges are removed.
+- Docs Tab:
+  Complete Software Implementation Plan:
+  * Executive Summary & Global Notes.
+  * Folder and file breakdowns with file counts, purpose statements, and
+    Planned vs. Actual token labels.
+
+C. Activity Logs (http://localhost:3001/#/logs)
+- Full-width conversation timeline.
+- Grouped chronologically by session (Session 1, Session 2, etc.) with the newest
+  session expanded by default.
+- Dialogue rendered as clean user and AI cards without tool noise.
+
+
+7. DEVELOPER CLI OPERATIONS & WORKFLOW
+--------------------------------------------------------------------------------
+
+Step 1: One-Time Global Installation (From Cloned Repo)
+Clone the repository from GitHub and run the installer ONCE:
+
+  On macOS / Linux / Windows Git Bash:
+    git clone https://github.com/your-username/token-moniter-planner.git
+    cd token-moniter-planner
+    ./install.sh
+
+  On Windows (PowerShell):
+    git clone https://github.com/your-username/token-moniter-planner.git
+    cd token-moniter-planner
+    .\install.ps1
+
+Configuration Location:
+  - macOS / Linux: ~/.claude/settings.json ($HOME/.claude/settings.json)
+  - Windows: %USERPROFILE%\.claude\settings.json (C:\Users\<Username>\.claude\settings.json)
+  - Custom: CLAUDE_CONFIG_DIR environment variable if specified
+
+What this performs:
+- Registers the plugin in global .claude/settings.json.
+- Installs the global /planning slash command in .claude/skills/planning/SKILL.md.
+- Sets your chosen API Gateway (OmniRoute, Ollama, custom URL), token, and model combo.
+- Verifies frontend viewer assets.
+- You do NOT need to copy any files or scripts into your other project folders!
+
+Step 2: Use in Any Project (Zero-Touch Setup)
+Simply navigate to any project folder on your machine:
+  cd /path/to/any-project
+  claude
+
+Inside Claude Code (CLI or VS Code extension), type:
+  /planning
+
+When you run /planning:
+- Prerequisites automatically install on the fly inside that project folder:
+  * Creates .planner/ directory.
+  * Copies .planner/prices.json.
+  * Scans repository files and generates .planner/plan.json, projects.json, dashboard.json.
+  * Ingests session transcripts into .planner/activity.json.
+  * Initializes SQLite app.db.
+  * Configures "npm start" in package.json.
+  * Preserves clean workspace isolation (no credentials stored in project repos).
+- Starts the Planning Studio UI on port 3001 (API on 8000) and opens in your browser!
+
+Step 3: Work Normally in Claude Code
+Give your development prompt:
+  "create a responsive dashboard with Tailwind CSS and a REST API backend"
+
+- Claude generates code and updates task statuses in .planner/plan.json.
+- Lifecycle hooks stream conversation turns into .planner/activity.json.
+- OmniRoute logs token receipts into .planner/usage.jsonl.
+- The dashboard polls every 5 seconds and updates live on screen.
+
+Step 4: Check Status in Terminal (No Browser)
+  node plugin/token-moniter-planner/commands/planning.js status
+
+Output:
+  === Planning Studio Status ===
+  Project:        my-awesome-app
+  Modules:        3 modules tracked
+  Tokens (in/out): 22,334,530 in / 74,175 out
+  Cost:           $3.70
+  Ledger Status:  measured
+
+Step 5: Headless Plan Reconciliation
+  node plugin/token-moniter-planner/commands/planning.js sync
+
+Reconciles Git file diffs and task checkmarks silently.
+
+
+8. MULTI-PROJECT WORKSPACE ISOLATION
+--------------------------------------------------------------------------------
+
+1. Target Project Boundary:
+   When /planning runs in an external project (e.g., /path/to/my-project), all state
+   (.planner/, app.db) is stored strictly inside that project's folder. No secret
+   credentials or tokens are stored in the project repository.
+2. Immutable Plugin Engine:
+   The plugin repository /Volumes/p900/Antigravity/token-moniter-planner serves as an
+   immutable template engine. External project commands are barred from modifying
+   files within it.
+3. Dynamic Routing:
+   Both the FastAPI backend and Node fallback server detect the project root via
+   process.cwd() or the X-Workspace-Dir HTTP header, preventing cross-project state
+   leakage.
+
+
+9. TROUBLESHOOTING & FAQ
+--------------------------------------------------------------------------------
+
+Q: Why does the dashboard say "No data yet"?
+A: This is expected for new projects before any API calls are made through OmniRoute.
+   Once your first prompt runs, the ledger ingests the call and the dashboard displays
+   measured data.
+
+Q: Port 8000 or 3001 is already in use
+A: - If a FastAPI backend is already running on port 8000, planning.js connects to it
+     without issuing a kill signal.
+   - If an old process is hanging on port 3001, planning.js terminates and rebinds it
+     automatically.
+
+Q: Can I run the server headlessly?
+A: Yes. Use "node plugin/token-moniter-planner/commands/planning.js sync" or "status"
+   to inspect state without launching a browser.
+
+Q: How do I update model prices?
+A: Edit .planner/prices.json in your project root. Changes apply to newly ingested
+   calls immediately while historical records retain their original pricing snapshots.
+================================================================================

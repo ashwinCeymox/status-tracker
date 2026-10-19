@@ -1,0 +1,48 @@
+{
+  "name": "token-moniter-planner",
+  "version": "1.0.0",
+  "description": "Token Monitor & Vibe Coder Planning Studio Plugin",
+  "commands": {
+    "planning": {
+      "source": "./commands/planning.md",
+      "description": "Open the Vibe Coder Planning Studio & Flowchart UI"
+    }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/log-activity.js\""
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/log-activity.js\""
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/log-activity.js\""
+      }
+    ],
+    "SessionEnd": [
+      {
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/log-activity.js\""
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/log-activity.js\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Plan",
+  "type": "object",
+  "properties": {
+    "productIdea": {
+      "type": "string"
+    },
+    "globalNotes": {
+      "type": "string"
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "category": { "type": "string" },
+          "title": { "type": "string" },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "category": { "type": "string" },
+                "summary": { "type": "string" },
+                "purpose": { "type": "string" },
+                "whyNeeded": { "type": "string" },
+                "dependsOn": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "dependsOnReason": { "type": "string" },
+                "deliverables": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "risks": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "complexity": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high"]
+                },
+                "effortHint": { "type": "string" },
+                "modelPreference": { "type": "string" },
+                "userNote": { "type": "string" },
+                "reviewStatus": {
+                  "type": "string",
+                  "enum": ["unreviewed", "approved", "needs-change"]
+                },
+                "tasks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "title": { "type": "string" },
+                      "summary": { "type": "string" },
+                      "purpose": { "type": "string" },
+                      "whyNeeded": { "type": "string" },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "dependsOnReason": { "type": "string" },
+                      "deliverables": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "risks": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "complexity": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"]
+                      },
+                      "assignedModel": { "type": "string" },
+                      "userNote": { "type": "string" },
+                      "reviewStatus": {
+                        "type": "string",
+                        "enum": ["unreviewed", "approved", "needs-change"]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": ["pending", "running", "done", "failed", "blocked"]
+                      },
+                      "tokens": { "type": "number" },
+                      "cost": { "type": "number" },
+                      "error": { "type": "string" }
+                    },
+                    "required": ["id", "title"]
+                  }
+                }
+              },
+              "required": ["id", "title"]
+            }
+          }
+        },
+        "required": ["id", "title", "modules"]
+      }
+    }
+  },
+  "required": ["domains"]
+}
