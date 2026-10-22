@@ -62,6 +62,86 @@ On the very first launch in any folder, the plugin automatically:
 | `/planning` | Opens Planning Studio UI on `http://localhost:3001` and reconciles tasks. |
 | `/planning status` | Prints a clean 5-line terminal status summary (tokens, cost, modules). |
 | `/planning sync` | Headless plan reconciliation against latest Git diff and file modifications. |
+| `/planning export` | Exports chat dialogue and activity logs to a `.txt` file (optional: `/planning export [file.txt]`). |
+
+---
+
+## 🔍 How Input & Output Tokens Are Monitored and Collected
+
+The plugin collects, normalizes, and accounts for token usage across your project through a multi-tier pipeline:
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                              Claude Code                               │
+│  (Configured with ANTHROPIC_BASE_URL pointing to OmniRoute / Gateway)  │
+└───────────────────┬─────────────────────────────────┬──────────────────┘
+                    │ 1. API Calls                    │ 2. Session Transcripts
+                    ▼                                 ▼
+         ┌─────────────────────┐          ┌────────────────────────┐
+         │   OmniRoute Proxy   │          │  ~/.claude/projects/   │
+         │ (Tracks Token Usage)│          │   (*.jsonl sessions)   │
+         └──────────┬──────────┘          └───────────┬────────────┘
+                    │                                 │
+                    │ /api/usage/call-logs            │ Lifecycle Hooks
+                    │                                 │ (log-activity.js)
+                    ▼                                 ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Usage Ledger Engine (usage-ledger.js)                │
+│  - De-duplicates by request_id                                         │
+│  - Normalizes Gemini cached tokens (prevents double-billing)           │
+│  - Merges reasoning tokens into effective output tokens                │
+│  - Computes cost from .planner/prices.json                             │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                    Target Project: .planner/                           │
+│  ├── usage.jsonl     (Append-only ledger of every call)                │
+│  ├── dashboard.json  (Aggregated totals: in/out tokens, cost)          │
+│  └── activity.json   (Cleaned conversation turns & timestamps)         │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               Web Control Center (http://localhost:3001)               │
+│  - Total Input / Output Token KPI Cards                                │
+│  - Recharts Token Usage Over Time Area Chart                           │
+│  - Recent Requests Live Table                                          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. Ingestion from Gateway / Proxy Logs (`fetchCallLogs` & `ingestOmniRouteLogs`)
+* When Claude Code runs through an API proxy (such as OmniRoute), every model call passes through the proxy via `ANTHROPIC_BASE_URL`.
+* The proxy receives exact usage metrics directly from model provider responses:
+  * `tokens.in`: Raw input prompt tokens.
+  * `tokens.out`: Generated response tokens.
+  * `tokens.cacheRead` & `tokens.cacheWrite`: Prompt caching hits and creations.
+  * `tokens.reasoning`: Extended thinking/reasoning tokens.
+* The plugin queries the gateway's `/api/usage/call-logs` endpoint, filters out non-billable noise (health checks, connection tests, failed requests), and appends verified records to `.planner/usage.jsonl`.
+* Calls are de-duplicated by unique `request_id` to guarantee zero double-counting.
+
+### 2. Local Database Synchronization (`syncFromSqlite`)
+* The engine checks for existing local SQLite databases (`app.db` or `backend/control_center.db`).
+* Inspects the `modelusagerecord` table and ingests any prior unrecorded task executions, preserving historical token volume.
+
+### 3. Lifecycle Hooks & Session Transcripts (`activity-pipeline.js`)
+* Non-blocking hooks (`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionEnd`) invoke `scripts/log-activity.js` with a 500ms safety timeout.
+* The pipeline scans Claude Code session transcripts stored in `~/.claude/projects/<project-hash>/*.jsonl`.
+* Strips internal tags (`<system-reminder>`, `<ide_opened_file>`, thinking tags) and groups turns chronologically into `.planner/activity.json`.
+* **Independent Audit**: Run `node plugin/token-moniter-planner/commands/usage-ledger.js reconcile` to cross-check ledger totals against Claude Code's built-in `ccusage` CLI session records (flags any discrepancy > 5%).
+
+### 4. Normalization & Cost Engine Mathematics
+* **Gemini Double-Billing Prevention**:
+  Gemini natively includes cached tokens in the reported input tokens. The engine automatically normalizes this:
+  $$\text{Billable Input}_{\text{Gemini}} = \max(0, \text{input\_tokens} - \text{cache\_read\_tokens})$$
+* **Reasoning Token Accounting**:
+  Thinking and reasoning tokens are counted as billable output tokens:
+  $$\text{Effective Output} = \text{output\_tokens} + \text{reasoning\_tokens}$$
+* **Unit Pricing Calculation**:
+  Billed per million tokens using `.planner/prices.json`:
+  $$\text{Cost} = \left(\frac{\text{Billable Input}}{10^6} \times P_{\text{in}}\right) + \left(\frac{\text{Cache Read}}{10^6} \times P_{\text{cache}}\right) + \left(\frac{\text{Cache Write}}{10^6} \times P_{\text{cache\_write}}\right) + \left(\frac{\text{Effective Output}}{10^6} \times P_{\text{out}}\right)$$
+
+### 5. Local State Aggregation (`dashboard.json`)
+* Aggregates total input tokens, output tokens, cache read/write, and USD cost into `.planner/dashboard.json`.
+* **Zero Invented Numbers**: Projects with no recorded calls display `"No data yet"` (`null`) rather than synthetic mock numbers.
 
 ---
 

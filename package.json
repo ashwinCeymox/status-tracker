@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node plugin/token-moniter-planner/commands/planning.js",
     "status": "node plugin/token-moniter-planner/commands/planning.js status",
-    "sync": "node plugin/token-moniter-planner/commands/planning.js sync"
+    "sync": "node plugin/token-moniter-planner/commands/planning.js sync",
+    "export": "node plugin/token-moniter-planner/commands/planning.js export",
+    "export-chat": "node plugin/token-moniter-planner/commands/planning.js export"
   },
   "dependencies": {
     "ccusage": "^20.0.33"

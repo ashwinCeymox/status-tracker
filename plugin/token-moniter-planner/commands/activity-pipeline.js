@@ -162,6 +162,14 @@ async function buildActivityData(projectDir = process.cwd()) {
 
   if (!sessionDir || !fs.existsSync(sessionDir)) {
     console.log(`[activity-pipeline] No session transcripts directory found for ${projectDir}`);
+    if (fs.existsSync(activityFilePath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(activityFilePath, 'utf8'));
+        if (existing && Array.isArray(existing.sessions) && existing.sessions.length > 0) {
+          return existing;
+        }
+      } catch (e) {}
+    }
     const emptyData = {
       project: projectDir,
       generatedAt: new Date().toISOString(),

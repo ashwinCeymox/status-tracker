@@ -16,6 +16,7 @@ Manage the project implementation plan, token monitor, and activity logs.
 - `/planning`: Launch Planning Studio UI on `http://localhost:3001` and open in browser for the active project.
 - `/planning sync`: Reconcile workspace file diffs, update task completion statuses, ingest SQLite history, and sync activity transcripts in the current project.
 - `/planning status`: Output a clean 5-line terminal status summary for the current project.
+- `/planning export`: Export chat conversations and activity logs from database and transcripts into a formatted `.txt` file. Optional output path: `/planning export [filename.txt]`.
 
 ## Command Execution
 ```bash

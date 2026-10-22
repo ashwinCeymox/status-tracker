@@ -47,50 +47,6 @@ const { scanProject: reconcilePlan } = require('./generate-plan.js');
 reconcilePlan(process.cwd());
 syncFromSqlite(process.cwd());
 
-// Handle subcommands: /planning sync, /planning status
-const args = process.argv.slice(2);
-if (args.includes('sync')) {
-  buildActivityData(process.cwd()).then(() => {
-    console.log('✅ Synchronized workspace plan, usage ledger, and session activity.');
-    process.exit(0);
-  }).catch(() => process.exit(0));
-  return;
-}
-
-if (args.includes('status')) {
-  const dash = computeDashboardFromLedger(path.resolve(process.cwd(), '.planner/usage.jsonl'), path.basename(process.cwd()));
-  const projPath = path.resolve(process.cwd(), '.planner/projects.json');
-  let projName = path.basename(process.cwd());
-  let modCount = 0;
-  if (fs.existsSync(projPath)) {
-    try {
-      const p = JSON.parse(fs.readFileSync(projPath, 'utf8'));
-      projName = p.name || projName;
-      modCount = p.modules?.length || 0;
-    } catch(e) {}
-  }
-  console.log('=== Planning Studio Status ===');
-  console.log(`Project:        ${projName}`);
-  console.log(`Modules:        ${modCount} modules tracked`);
-  console.log(`Tokens (in/out): ${dash.total_input_tokens !== null ? dash.total_input_tokens.toLocaleString() + ' in / ' + (dash.total_output_tokens || 0).toLocaleString() + ' out' : 'No data yet'}`);
-  console.log(`Cost:           ${dash.total_cost !== null ? '$' + dash.total_cost.toFixed(2) : 'No data yet'}`);
-  console.log(`Ledger Status:  ${dash.status}`);
-  process.exit(0);
-}
-
-// Starting UI Server: ensure UI port 3001 is clean
-killOnPort(uiPort);
-
-// Only kill port 8000 if FastAPI is NOT running
-const fastApiActive = isFastApiRunning(apiPort);
-if (!fastApiActive) {
-  killOnPort(apiPort);
-}
-
-// Build initial activity.json and setup watch on session files
-buildActivityData(process.cwd()).catch(() => {});
-setupSessionWatcher(process.cwd());
-
 const getActivityData = () => {
   if (fs.existsSync(activityFilePath)) {
     try {
@@ -160,13 +116,20 @@ function getLogsFromDb() {
     if (fs.existsSync(dbPath)) {
       const { DatabaseSync } = require('node:sqlite');
       const db = new DatabaseSync(dbPath);
-      const rows = db.prepare(`
-        SELECT a.id, a.project_id, a.session_id, a.model_name, a.event_type, a.status, a.summary, a.details, a.timestamp,
-               COALESCE(s.summary, 'Session ' || COALESCE(a.session_id, 1)) as session_name
-        FROM activitylog a
-        LEFT JOIN sessionrecord s ON a.session_id = s.id
-        ORDER BY a.timestamp DESC
-      `).all();
+      let rows = [];
+      try {
+        rows = db.prepare(`
+          SELECT a.*,
+                 COALESCE(s.summary, 'Session ' || COALESCE(a.session_id, 1)) as session_name
+          FROM activitylog a
+          LEFT JOIN sessionrecord s ON a.session_id = s.id
+          ORDER BY a.timestamp DESC
+        `).all();
+      } catch (e) {
+        try {
+          rows = db.prepare(`SELECT * FROM activitylog ORDER BY timestamp DESC`).all();
+        } catch (e2) {}
+      }
       db.close();
       if (rows && rows.length > 0) return rows;
     }
@@ -191,6 +154,159 @@ function saveChatToDb(userMessage, aiReply, modelName = 'claude-3-5-sonnet', ses
     console.error('Error saving chat to db:', e);
   }
 }
+
+function formatChatExport(projectDir = process.cwd(), actData = null, dbLogs = null) {
+  const projectName = path.basename(projectDir);
+  const now = new Date().toISOString();
+
+  const act = actData || getActivityData();
+  const sessions = (act && act.sessions) ? act.sessions : [];
+  const dbRecords = dbLogs || getLogsFromDb();
+
+  let lines = [];
+  lines.push('================================================================================');
+  lines.push('TOKEN MONITOR & PLANNING STUDIO - CHAT & ACTIVITY LOG EXPORT');
+  lines.push(`Project:     ${projectName}`);
+  lines.push(`Exported At: ${now}`);
+  lines.push('================================================================================\n');
+
+  let hasData = false;
+
+  if (sessions.length > 0) {
+    hasData = true;
+    let totalMessages = 0;
+    sessions.forEach(s => totalMessages += (s.messages || []).length);
+    lines.push(`Summary: ${sessions.length} session(s), ${totalMessages} message(s) captured from Claude transcripts.\n`);
+
+    for (const session of sessions) {
+      lines.push('--------------------------------------------------------------------------------');
+      lines.push(`${session.label || 'Session'} [ID: ${session.id || 'N/A'}]`);
+      lines.push(`Started At: ${session.startedAt || 'N/A'}`);
+      lines.push('--------------------------------------------------------------------------------\n');
+
+      const msgs = session.messages || [];
+      if (msgs.length === 0) {
+        lines.push('(No messages recorded in this session)\n');
+      } else {
+        for (const m of msgs) {
+          const rawRole = (m.role || 'unknown').toUpperCase();
+          const role = (rawRole === 'AI' || rawRole === 'ASSISTANT') ? 'AGENT' : (rawRole === 'USER' ? 'USER' : rawRole);
+          const ts = m.timestamp || 'N/A';
+          lines.push(`[${ts}] ${role}:`);
+          lines.push(m.text ? m.text.trim() : '');
+          lines.push('');
+        }
+      }
+      lines.push('');
+    }
+  }
+
+  // Check for SQLite chat or activity records
+  const dbChats = (dbRecords || []).filter(l => l.event_type === 'chat');
+  const otherDbLogs = (dbRecords || []).filter(l => l.event_type !== 'chat');
+
+  if (dbChats.length > 0) {
+    hasData = true;
+    lines.push('--------------------------------------------------------------------------------');
+    lines.push(`DATABASE CHAT RECORDS (${dbChats.length} records)`);
+    lines.push('--------------------------------------------------------------------------------\n');
+
+    for (const c of [...dbChats].reverse()) {
+      const ts = c.timestamp || 'N/A';
+      const model = c.model_name ? ` (${c.model_name})` : '';
+      lines.push(`[${ts}] AGENT${model}:`);
+      lines.push(c.details || c.summary || '');
+      lines.push('');
+    }
+    lines.push('');
+  } else if (!sessions.length && otherDbLogs.length > 0) {
+    hasData = true;
+    lines.push(`Summary: ${otherDbLogs.length} event(s) captured from SQLite activity log.\n`);
+    for (const l of [...otherDbLogs].reverse()) {
+      const ts = l.timestamp || 'N/A';
+      const evType = (l.event_type || 'EVENT').toUpperCase();
+      const model = l.model_name ? ` (${l.model_name})` : '';
+      let role = `${evType}${model}`;
+      if (evType === 'USER_PROMPT' || evType === 'USER') {
+        role = 'USER';
+      } else if (evType === 'AI_RESPONSE' || evType === 'AI' || evType === 'ASSISTANT' || evType === 'CHAT') {
+        role = `AGENT${model}`;
+      }
+      lines.push(`[${ts}] ${role}:`);
+      lines.push(l.details || l.summary || '');
+      lines.push('');
+    }
+    lines.push('');
+  }
+
+  if (!hasData) {
+    lines.push('No chat or activity log records found for this workspace.\n');
+  }
+
+  return lines.join('\n');
+}
+
+// Handle subcommands: /planning sync, /planning status, /planning export
+const args = process.argv.slice(2);
+if (args.includes('sync')) {
+  buildActivityData(process.cwd()).then(() => {
+    console.log('✅ Synchronized workspace plan, usage ledger, and session activity.');
+    process.exit(0);
+  }).catch(() => process.exit(0));
+  return;
+}
+
+if (args.includes('status')) {
+  const dash = computeDashboardFromLedger(path.resolve(process.cwd(), '.planner/usage.jsonl'), path.basename(process.cwd()));
+  const projPath = path.resolve(process.cwd(), '.planner/projects.json');
+  let projName = path.basename(process.cwd());
+  let modCount = 0;
+  if (fs.existsSync(projPath)) {
+    try {
+      const p = JSON.parse(fs.readFileSync(projPath, 'utf8'));
+      projName = p.name || projName;
+      modCount = p.modules?.length || 0;
+    } catch(e) {}
+  }
+  console.log('=== Planning Studio Status ===');
+  console.log(`Project:        ${projName}`);
+  console.log(`Modules:        ${modCount} modules tracked`);
+  console.log(`Tokens (in/out): ${dash.total_input_tokens !== null ? dash.total_input_tokens.toLocaleString() + ' in / ' + (dash.total_output_tokens || 0).toLocaleString() + ' out' : 'No data yet'}`);
+  console.log(`Cost:           ${dash.total_cost !== null ? '$' + dash.total_cost.toFixed(2) : 'No data yet'}`);
+  console.log(`Ledger Status:  ${dash.status}`);
+  process.exit(0);
+}
+
+if (args.includes('export') || args.includes('export-chat')) {
+  buildActivityData(process.cwd()).catch(() => {}).then(() => {
+    const exportIdx = args.findIndex(a => a === 'export' || a === 'export-chat');
+    const customTarget = args[exportIdx + 1] && !args[exportIdx + 1].startsWith('-') ? args[exportIdx + 1] : null;
+
+    const exportText = formatChatExport(process.cwd());
+    const defaultName = `chat-export-${path.basename(process.cwd())}-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.txt`;
+    const fileName = customTarget || defaultName;
+    const exportPath = path.resolve(process.cwd(), fileName);
+
+    fs.writeFileSync(exportPath, exportText, 'utf8');
+    console.log(`✨ Chat exported successfully to: ${exportPath}`);
+    console.log(`📄 File size: ${Buffer.byteLength(exportText)} bytes`);
+    process.exit(0);
+  });
+  return;
+}
+
+// Starting UI Server: ensure UI port 3001 is clean
+killOnPort(uiPort);
+
+// Only kill port 8000 if FastAPI is NOT running
+const fastApiActive = isFastApiRunning(apiPort);
+if (!fastApiActive) {
+  killOnPort(apiPort);
+}
+
+// Build initial activity.json and setup watch on session files
+buildActivityData(process.cwd()).catch(() => {});
+setupSessionWatcher(process.cwd());
 function getClaudeConfigDir() {
   if (process.env.CLAUDE_CONFIG_DIR) return process.env.CLAUDE_CONFIG_DIR;
   return path.join(require('os').homedir(), '.claude');
@@ -480,8 +596,26 @@ const handleApiRequest = (req, res) => {
       summary: (m.text || '').slice(0, 100).replace(/\n/g, ' '),
       details: m.text
     }))).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    if (allLogs.length > 0) {
+      res.writeHead(200);
+      res.end(JSON.stringify(allLogs));
+      return;
+    }
+
+    const dbLogs = getLogsFromDb();
     res.writeHead(200);
-    res.end(JSON.stringify(allLogs));
+    res.end(JSON.stringify(dbLogs));
+    return;
+  }
+
+  if (parsedUrl === '/api/logs/export' || parsedUrl === '/api/logs/export.txt' || parsedUrl === '/api/chat/export' || parsedUrl === '/api/activity/export') {
+    const exportText = formatChatExport(process.cwd());
+    const fileName = `chat-export-${path.basename(process.cwd())}.txt`;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.writeHead(200);
+    res.end(exportText);
     return;
   }
 

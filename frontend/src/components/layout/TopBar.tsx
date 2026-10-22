@@ -42,6 +42,7 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
+
         <button
           onClick={handleSync}
           className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-surface)] hover:bg-[var(--color-hover)] px-2.5 py-1.5 rounded-md border border-[var(--color-border)] transition-colors"

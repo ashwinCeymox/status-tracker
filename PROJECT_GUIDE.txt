@@ -348,6 +348,8 @@ C. Activity Logs (http://localhost:3001/#/logs)
 - Grouped chronologically by session (Session 1, Session 2, etc.) with the newest
   session expanded by default.
 - Dialogue rendered as clean user and AI cards without tool noise.
+- "Export Chat (.txt)" action button in header to export full or search-filtered
+  dialogue transcripts to a formatted text file.
 
 
 7. DEVELOPER CLI OPERATIONS & WORKFLOW
@@ -421,6 +423,15 @@ Step 5: Headless Plan Reconciliation
   node plugin/token-moniter-planner/commands/planning.js sync
 
 Reconciles Git file diffs and task checkmarks silently.
+
+Step 6: Export Chat and Activity Logs (.txt Format)
+  node plugin/token-moniter-planner/commands/planning.js export
+  # Or with a custom output filename:
+  node plugin/token-moniter-planner/commands/planning.js export ./my-chat-history.txt
+
+Exports chronologically grouped chat dialogue and activity logs from .planner/activity.json
+and SQLite app.db into a clean, human-readable .txt file. In Claude Code, you can also run:
+  /planning export
 
 
 8. MULTI-PROJECT WORKSPACE ISOLATION

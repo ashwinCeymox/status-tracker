@@ -145,6 +145,16 @@ Cost:           $3.70
 Ledger Status:  measured
 ```
 
+### 4. `/planning export` (Export Chat & Activity Logs)
+```text
+/planning export
+# Or specify a custom target path:
+/planning export ./chat-transcript.txt
+```
+- Extracts conversation turns from Claude Code session transcripts (`.planner/activity.json`) and SQLite database (`app.db`).
+- Produces a cleanly structured `.txt` file with session headers, timestamps, roles (`USER`, `AI (model)`, `CHAT`), and dialogue text.
+- Also available as a 1-click **"Export Chat (.txt)"** button in the Activity Logs web view (`http://localhost:3001/#/logs`).
+
 ---
 
 ## 4. The 5 `.planner/` State Files
@@ -216,8 +226,9 @@ Access the control center at **`http://localhost:3001`**:
 - **Docs Tab**: Full Software Implementation Plan including Executive Summary, Tech Stack Notes, and Folder/File breakdowns with file counts and purpose statements.
 
 ### 3. Activity Logs (`/logs`)
-- Full-width conversation timeline parsed from Claude Code transcripts.
-- Grouped chronologically by session (`Session 1`, `Session 2`, etc.) with the newest session expanded by default.
+- Full-width conversation timeline parsed from Claude Code transcripts and SQLite database.
+- Grouped chronologically by session (`Session 1`, `Session 2`, etc.) with expandable event details.
+- Includes a dedicated **Export Chat (.txt)** button in the header toolbar to download chat dialogue directly in `.txt` format.
 
 ---
 
