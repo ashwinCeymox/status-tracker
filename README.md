@@ -4,6 +4,8 @@ A local planning studio, token telemetry engine, and real-time dashboard plugin 
 
 Provides zero-touch workspace isolation, Gemini/Claude token normalization, cost accounting, live flowchart planning, and activity transcript visualization.
 
+> **OmniRoute Native**: This setup is pre-configured out-of-the-box to work seamlessly with **OmniRoute** as its primary AI Gateway and telemetry source.
+
 ---
 
 ## 🚀 Quick Start (One-Time Global Installation)
@@ -25,9 +27,51 @@ cd token-monitor-planner
 ```
 
 The interactive installer will ask you:
-1. **API Gateway**: OmniRoute, Ollama, Custom URL, or Skip.
+1. **API Gateway**: OmniRoute (Option 1 - default), Ollama, Custom URL, or Skip.
 2. **API Key / Auth Token**: Saved securely into `~/.claude/settings.json` (never in project folders).
 3. **Model / Combo Name**: Configure your preferred default model or combo name.
+
+---
+
+## 🌐 OmniRoute Setup & Integration
+
+OmniRoute acts as the unified AI Gateway and proxy that routes, load balances, and tracks token consumption for Claude Code across model providers (Anthropic, Gemini, OpenAI, DeepSeek, Ollama, etc.).
+
+### 1. Installing & Running OmniRoute Locally
+
+You can launch OmniRoute using either Docker or Node.js:
+
+#### Option A: Docker (Recommended)
+```bash
+# Pull and run OmniRoute container
+docker run -d \
+  --name omniroute \
+  --restart unless-stopped \
+  --stop-timeout 40 \
+  -e OMNIROUTE_MEMORY_MB=8192 \
+  --memory=10g \
+  -p 20128:20128 \
+  -v omniroute-data:/app/data \
+  diegosouzapw/omniroute:latest
+```
+
+#### Option B: Node.js / Local Clone
+```bash
+# Clone and start OmniRoute
+git clone https://github.com/your-username/omniroute.git
+cd omniroute
+npm install
+npm start
+```
+
+*OmniRoute will be active at `http://localhost:20128` (or your configured port).*
+
+### 2. Pre-Configured Integration
+
+Token Monitor & Planning Studio is built specifically to pair with OmniRoute:
+- **Zero-Touch Wiring**: Selecting **Option 1 (OmniRoute)** during `./install.sh` automatically routes Claude Code through OmniRoute by setting `ANTHROPIC_BASE_URL=http://localhost:8080/v1` in `~/.claude/settings.json`.
+- **Live Call Telemetry**: The telemetry engine connects to OmniRoute's `/api/usage/call-logs` endpoint, recording exact prompt, completion, cache-read, and reasoning token receipts into `.planner/usage.jsonl`.
+- **Proxy Status & Model Combos**: The web UI automatically displays live OmniRoute connection health and active model combos.
 
 ---
 
@@ -55,7 +99,7 @@ On the very first launch in any folder, the plugin automatically:
 
 ---
 
-## 🛠️ Subcommands
+## 🛠️ Subcommands & Controls
 
 | Command | Action |
 | :--- | :--- |
@@ -63,6 +107,8 @@ On the very first launch in any folder, the plugin automatically:
 | `/planning status` | Prints a clean 5-line terminal status summary (tokens, cost, modules). |
 | `/planning sync` | Headless plan reconciliation against latest Git diff and file modifications. |
 | `/planning export` | Exports chat dialogue and activity logs to a `.txt` file (optional: `/planning export [file.txt]`). |
+| `/planning stop` | Cleanly shuts down active server instances on ports `3001` and `8000`. |
+| `npm run stop` | Terminal shortcut to immediately terminate lingering instances on ports `3001` & `8000`. |
 
 ---
 
